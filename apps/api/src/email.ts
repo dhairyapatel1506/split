@@ -32,4 +32,6 @@ export async function sendEmail(msg: EmailJob): Promise<void> {
   if (!res.ok) {
     throw new Error(`Brevo responded ${res.status}: ${await res.text()}`);
   }
+  const { messageId } = (await res.json()) as { messageId?: string };
+  log.info({ to: msg.to, subject: msg.subject, messageId }, 'email sent');
 }

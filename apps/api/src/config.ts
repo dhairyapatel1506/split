@@ -1,3 +1,8 @@
+// Loads the repo-root .env into process.env if present; silently a no-op
+// when the file doesn't exist. Production supplies real env vars instead.
+import dotenv from 'dotenv';
+dotenv.config({ path: new URL('../../../.env', import.meta.url).pathname });
+
 // All environment-dependent values live here (12-factor style): the code is
 // identical in dev and prod; only the environment injects different values.
 export const config = {

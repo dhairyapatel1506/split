@@ -10,6 +10,7 @@ import {
   type User,
 } from '../api.js';
 import { usePoll } from '../hooks.js';
+import { RefreshIcon, TrashIcon, XIcon } from '../icons.js';
 
 export function GroupPage({ me }: { me: User }) {
   const { groupId } = useParams<{ groupId: string }>();
@@ -56,9 +57,14 @@ export function GroupPage({ me }: { me: User }) {
     <main className="container">
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h1>{group.name}</h1>
-        <Link to="/" className="muted">
-          ← All groups
-        </Link>
+        <span className="row">
+          <button className="ghost icon" title="Refresh" onClick={load}>
+            <RefreshIcon />
+          </button>
+          <Link to="/" className="muted">
+            ← All groups
+          </Link>
+        </span>
       </div>
 
       <BalancesCard
@@ -69,8 +75,8 @@ export function GroupPage({ me }: { me: User }) {
         onChanged={load}
       />
       <AddExpenseCard me={me} group={group} onAdded={load} />
-      <ExpensesCard expenses={expenses} />
-      <MembersCard group={group} onChanged={load} />
+      <ExpensesCard expenses={expenses} groupId={group.id} onChanged={load} />
+      <MembersCard me={me} group={group} onChanged={load} />
     </main>
   );
 }
@@ -259,17 +265,45 @@ function AddExpenseCard({
   );
 }
 
-function ExpensesCard({ expenses }: { expenses: Expense[] }) {
+function ExpensesCard({
+  expenses,
+  groupId,
+  onChanged,
+}: {
+  expenses: Expense[];
+  groupId: string;
+  onChanged: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = async (e: Expense) => {
+    if (
+      !window.confirm(
+        `Delete "${e.description}" (${formatMoney(e.amount_cents)})? Balances will recalculate.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      await api.del(`/api/groups/${groupId}/expenses/${e.id}`);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to delete');
+    }
+  };
+
   return (
     <div className="card">
       <h2>Expenses</h2>
+      {error && <div className="error">{error}</div>}
       {expenses.length === 0 ? (
         <p className="muted">Nothing yet — add the first expense above.</p>
       ) : (
         <ul className="list">
           {expenses.map((e) => (
             <li key={e.id}>
-              <span>
+              <span style={{ flex: 1 }}>
                 <strong>{e.description}</strong>
                 <br />
                 <span className="muted">
@@ -280,6 +314,14 @@ function ExpensesCard({ expenses }: { expenses: Expense[] }) {
               <span style={{ fontWeight: 600 }}>
                 {formatMoney(e.amount_cents)}
               </span>
+              <button
+                className="danger icon"
+                title="Delete expense"
+                aria-label={`Delete ${e.description}`}
+                onClick={() => remove(e)}
+              >
+                <TrashIcon />
+              </button>
             </li>
           ))}
         </ul>
@@ -289,9 +331,11 @@ function ExpensesCard({ expenses }: { expenses: Expense[] }) {
 }
 
 function MembersCard({
+  me,
   group,
   onChanged,
 }: {
+  me: User;
   group: GroupDetail;
   onChanged: () => void;
 }) {
@@ -310,14 +354,40 @@ function MembersCard({
     }
   };
 
+  const remove = async (m: { id: string; name: string }) => {
+    const prompt =
+      m.id === me.id
+        ? `Leave "${group.name}"?`
+        : `Remove ${m.name} from "${group.name}"?`;
+    if (!window.confirm(prompt)) return;
+    setError(null);
+    try {
+      await api.del(`/api/groups/${group.id}/members/${m.id}`);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to remove');
+    }
+  };
+
   return (
     <div className="card">
       <h2>Members</h2>
+      {error && <div className="error">{error}</div>}
       <ul className="list">
         {group.members.map((m) => (
           <li key={m.id}>
-            <span>{m.name}</span>
+            <span style={{ flex: 1 }}>
+              {m.id === me.id ? 'You' : m.name}
+            </span>
             <span className="muted">{m.email}</span>
+            <button
+              className="ghost icon"
+              title={m.id === me.id ? 'Leave group' : `Remove ${m.name}`}
+              aria-label={m.id === me.id ? 'Leave group' : `Remove ${m.name}`}
+              onClick={() => remove(m)}
+            >
+              <XIcon />
+            </button>
           </li>
         ))}
       </ul>

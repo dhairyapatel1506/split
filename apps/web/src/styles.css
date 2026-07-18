@@ -158,6 +158,14 @@ button.ghost:hover {
   background: #1d222d;
 }
 
+button.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem;
+  line-height: 0;
+}
+
 button.danger {
   background: transparent;
   color: #f87171;

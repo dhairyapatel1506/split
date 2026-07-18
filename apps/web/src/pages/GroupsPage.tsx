@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError, type BinnedGroup, type Group } from '../api.js';
 import { usePoll } from '../hooks.js';
+import { RefreshIcon, TrashIcon } from '../icons.js';
 
 export function GroupsPage() {
   const [groups, setGroups] = useState<Group[] | null>(null);
@@ -60,7 +61,12 @@ export function GroupsPage() {
 
   return (
     <main className="container">
-      <h1>Your groups</h1>
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <h1>Your groups</h1>
+        <button className="ghost icon" title="Refresh" onClick={load}>
+          <RefreshIcon />
+        </button>
+      </div>
       {error && <div className="error">{error}</div>}
       <div className="card">
         <form className="row" onSubmit={create}>
@@ -91,8 +97,13 @@ export function GroupsPage() {
                 <span className="muted">
                   {g.member_count} member{g.member_count === 1 ? '' : 's'}
                 </span>
-                <button className="danger" onClick={() => binGroup(g)}>
-                  Bin
+                <button
+                  className="danger icon"
+                  title="Move to bin"
+                  aria-label={`Move ${g.name} to bin`}
+                  onClick={() => binGroup(g)}
+                >
+                  <TrashIcon />
                 </button>
               </li>
             ))}

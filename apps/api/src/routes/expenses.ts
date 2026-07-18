@@ -140,6 +140,28 @@ export const expenseRoutes: FastifyPluginAsync = async (app) => {
     return expenses.map((e) => ({ ...e, shares: byExpense.get(e.id) ?? [] }));
   });
 
+  app.delete(
+    '/api/groups/:groupId/expenses/:expenseId',
+    async (req, reply) => {
+      const { groupId, expenseId } = z
+        .object({ groupId: z.string().uuid(), expenseId: z.string().uuid() })
+        .parse(req.params);
+      if (!(await isMember(groupId, req.userId))) {
+        return reply.code(404).send({ error: 'Group not found' });
+      }
+      // Hard delete: this is an explicit correction, and ON DELETE CASCADE
+      // removes the shares; balances simply recompute without it.
+      const { rows } = await db.query(
+        'DELETE FROM expenses WHERE id = $1 AND group_id = $2 RETURNING id',
+        [expenseId, groupId],
+      );
+      if (!rows[0]) {
+        return reply.code(404).send({ error: 'Expense not found' });
+      }
+      return { ok: true };
+    },
+  );
+
   app.post('/api/groups/:groupId/settlements', async (req, reply) => {
     const { groupId } = groupParams.parse(req.params);
     if (!(await isMember(groupId, req.userId))) {

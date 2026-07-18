@@ -141,6 +141,60 @@ export const groupRoutes: FastifyPluginAsync = async (app) => {
     return { ...rows[0], members: members.rows };
   });
 
+  app.delete('/api/groups/:groupId/members/:userId', async (req, reply) => {
+    const { groupId, userId } = z
+      .object({ groupId: z.string().uuid(), userId: z.string().uuid() })
+      .parse(req.params);
+    if (!(await isMember(groupId, req.userId))) {
+      return reply.code(404).send({ error: 'Group not found' });
+    }
+    if (!(await isMember(groupId, userId))) {
+      return reply.code(404).send({ error: 'Not a member of this group' });
+    }
+
+    // Removal never rewrites history: past expenses stay. To guarantee no
+    // money disappears with the member, they must be fully settled first.
+    const { rows } = await db.query(
+      `SELECT (
+         COALESCE((SELECT sum(amount_cents) FROM expenses
+                    WHERE group_id = $1 AND paid_by = $2), 0)
+       - COALESCE((SELECT sum(s.share_cents) FROM expense_shares s
+                    JOIN expenses e ON e.id = s.expense_id
+                    WHERE e.group_id = $1 AND s.user_id = $2), 0)
+       + COALESCE((SELECT sum(amount_cents) FROM settlements
+                    WHERE group_id = $1 AND from_user = $2), 0)
+       - COALESCE((SELECT sum(amount_cents) FROM settlements
+                    WHERE group_id = $1 AND to_user = $2), 0)
+       )::bigint AS net`,
+      [groupId, userId],
+    );
+    const net = rows[0].net as number;
+    if (net !== 0) {
+      return reply.code(409).send({
+        error:
+          net > 0
+            ? 'They are still owed money in this group — settle up before removing them'
+            : 'They still owe money in this group — settle up before removing them',
+      });
+    }
+
+    const { rows: countRows } = await db.query(
+      'SELECT count(*)::int AS n FROM group_members WHERE group_id = $1',
+      [groupId],
+    );
+    if (countRows[0].n <= 1) {
+      return reply
+        .code(400)
+        .send({ error: 'A group needs at least one member — bin the group instead' });
+    }
+
+    await db.query(
+      'DELETE FROM group_members WHERE group_id = $1 AND user_id = $2',
+      [groupId, userId],
+    );
+    return { ok: true };
+  });
+
   app.post('/api/groups/:groupId/members', async (req, reply) => {
     const { groupId } = groupParams.parse(req.params);
     if (!(await isMember(groupId, req.userId))) {

@@ -103,6 +103,24 @@ export const groupRoutes: FastifyPluginAsync = async (app) => {
     return { ok: true };
   });
 
+  // Only binned groups can be permanently deleted — going through the bin
+  // first means no single click can irreversibly destroy a live group.
+  app.delete('/api/groups/:groupId/permanent', async (req, reply) => {
+    const { groupId } = groupParams.parse(req.params);
+    const { rows } = await db.query(
+      `DELETE FROM groups g
+        WHERE g.id = $1 AND g.deleted_at IS NOT NULL
+          AND EXISTS (SELECT 1 FROM group_members m
+                       WHERE m.group_id = g.id AND m.user_id = $2)
+        RETURNING g.id`,
+      [groupId, req.userId],
+    );
+    if (!rows[0]) {
+      return reply.code(404).send({ error: 'Group not found in bin' });
+    }
+    return { ok: true };
+  });
+
   app.post('/api/groups/:groupId/restore', async (req, reply) => {
     const { groupId } = groupParams.parse(req.params);
     const { rows } = await db.query(

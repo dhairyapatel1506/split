@@ -59,6 +59,23 @@ export function GroupsPage() {
     }
   };
 
+  const deleteForever = async (group: BinnedGroup) => {
+    if (
+      !window.confirm(
+        `Permanently delete "${group.name}" and all its expenses? This cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      await api.del(`/api/groups/${group.id}/permanent`);
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to delete');
+    }
+  };
+
   return (
     <main className="container">
       <div className="row" style={{ justifyContent: 'space-between' }}>
@@ -124,9 +141,19 @@ export function GroupsPage() {
                     {daysUntil(g.purge_at) === 1 ? '' : 's'}
                   </span>
                 </span>
-                <button className="ghost" onClick={() => restore(g.id)}>
-                  Restore
-                </button>
+                <span className="row">
+                  <button className="ghost" onClick={() => restore(g.id)}>
+                    Restore
+                  </button>
+                  <button
+                    className="danger icon"
+                    title="Delete forever"
+                    aria-label={`Permanently delete ${g.name}`}
+                    onClick={() => deleteForever(g)}
+                  >
+                    <TrashIcon />
+                  </button>
+                </span>
               </li>
             ))}
           </ul>

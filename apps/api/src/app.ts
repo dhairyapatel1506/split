@@ -1,9 +1,12 @@
+import { createBullBoard } from '@bull-board/api';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { FastifyAdapter } from '@bull-board/fastify';
 import cookie from '@fastify/cookie';
 import Fastify, { type FastifyError } from 'fastify';
 import { ZodError } from 'zod';
 import { config } from './config.js';
 import { db } from './db.js';
-import { closeQueues } from './queue.js';
+import { closeQueues, emailsQueue, housekeepingQueue } from './queue.js';
 import { redis } from './redis.js';
 import { authRoutes } from './routes/auth.js';
 import { expenseRoutes } from './routes/expenses.js';
@@ -50,6 +53,21 @@ export function buildApp() {
   app.register(authRoutes);
   app.register(groupRoutes);
   app.register(expenseRoutes);
+
+  // Dev-only queue dashboard at /admin/queues. Guarded out of production
+  // builds entirely — admin tooling on a public server needs real auth.
+  if (!config.isProd) {
+    const serverAdapter = new FastifyAdapter();
+    serverAdapter.setBasePath('/admin/queues');
+    createBullBoard({
+      queues: [
+        new BullMQAdapter(emailsQueue),
+        new BullMQAdapter(housekeepingQueue),
+      ],
+      serverAdapter,
+    });
+    app.register(serverAdapter.registerPlugin(), { prefix: '/admin/queues' });
+  }
 
   app.addHook('onClose', async () => {
     await closeQueues();

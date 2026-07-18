@@ -41,3 +41,7 @@ npm run dev:web                                   # frontend on :5173 (proxies /
 ```
 
 Tests: `npm test --workspace apps/api` · Health: `curl localhost:3000/api/health`
+
+Dev dashboards: Adminer (DB) at `localhost:8080` — server `postgres`,
+user/password/db `split` · Bull Board (queues) at
+`localhost:3000/admin/queues` (non-production only)

@@ -14,13 +14,16 @@ the server it runs on is defined in this repo.
   whole group
 - Recorded settlements ("paid back via GPay")
 - Cookie-session auth (scrypt password hashing, sessions in Redis)
+- Email notifications: group invites, weekly "you owe" reminders (Brevo;
+  logged to console when no `BREVO_API_KEY` is set)
+- Group bin with 30-day retention, purged by a scheduled job
 
 ## Architecture
 
-- `apps/api` — Fastify (TypeScript) REST API
+- `apps/api` — Fastify (TypeScript) REST API + BullMQ worker process
+  (emails, scheduled jobs) sharing one codebase
 - `apps/web` — React (Vite) frontend
-- Postgres (data) + Redis (job queue) as backing services
-- Background workers (receipt OCR, email reminders) — coming in phase 2
+- Postgres (data) + Redis (sessions + job queue) as backing services
 - Infra: Oracle Cloud free ARM VM, Docker Compose, Terraform, Nginx + Let's
   Encrypt, GitHub Actions CI/CD, Prometheus/Grafana — coming in phases 3–5
 
@@ -33,6 +36,7 @@ npm install
 docker compose -f docker-compose.dev.yml up -d   # postgres + redis
 npm run migrate --workspace apps/api              # apply DB migrations
 npm run dev:api                                   # API on :3000
+npm run dev:worker                                # job worker (emails, schedules)
 npm run dev:web                                   # frontend on :5173 (proxies /api)
 ```
 

@@ -1,8 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../auth.js';
+import { config } from '../config.js';
 import { db } from '../db.js';
-import { BIN_RETENTION_DAYS } from '../housekeeping.js';
+import { BIN_RETENTION_DAYS } from '../jobs.js';
+import { emailsQueue } from '../queue.js';
 
 export const groupParams = z.object({ groupId: z.string().uuid() });
 
@@ -227,11 +229,32 @@ export const groupRoutes: FastifyPluginAsync = async (app) => {
         .code(404)
         .send({ error: 'No account with that email — ask them to sign up first' });
     }
-    await db.query(
+    const inserted = await db.query(
       `INSERT INTO group_members (group_id, user_id)
        VALUES ($1, $2) ON CONFLICT DO NOTHING`,
       [groupId, rows[0].id],
     );
+
+    // Notify the new member — but never fail the request over a
+    // notification: the queue add is best-effort.
+    if (inserted.rowCount) {
+      try {
+        const [group, inviter] = await Promise.all([
+          db.query('SELECT name FROM groups WHERE id = $1', [groupId]),
+          db.query('SELECT name FROM users WHERE id = $1', [req.userId]),
+        ]);
+        await emailsQueue.add('send', {
+          to: email.toLowerCase(),
+          subject: `${inviter.rows[0].name} added you to "${group.rows[0].name}" on Split`,
+          text:
+            `${inviter.rows[0].name} added you to the group ` +
+            `"${group.rows[0].name}" on Split.\n\n` +
+            `See what's shared: ${config.appBaseUrl}/groups/${groupId}\n\n— Split`,
+        });
+      } catch (err) {
+        req.log.error({ err }, 'failed to enqueue invite email');
+      }
+    }
     return reply.code(201).send({ ok: true });
   });
 };

@@ -3,6 +3,7 @@ import Fastify, { type FastifyError } from 'fastify';
 import { ZodError } from 'zod';
 import { config } from './config.js';
 import { db } from './db.js';
+import { closeQueues } from './queue.js';
 import { redis } from './redis.js';
 import { authRoutes } from './routes/auth.js';
 import { expenseRoutes } from './routes/expenses.js';
@@ -51,6 +52,7 @@ export function buildApp() {
   app.register(expenseRoutes);
 
   app.addHook('onClose', async () => {
+    await closeQueues();
     await db.end();
     redis.disconnect();
   });

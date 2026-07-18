@@ -6,6 +6,15 @@ Share expenses with friends, settle up without the awkward math. Live (soon) at
 Fully self-hosted and infrastructure-as-code: everything from the app code to
 the server it runs on is defined in this repo.
 
+## Features
+
+- Groups with email-based member invites
+- Expenses with equal or exact splits (money handled as integer paise/cents)
+- Live balances with debt simplification — at most N−1 transfers to settle a
+  whole group
+- Recorded settlements ("paid back via GPay")
+- Cookie-session auth (scrypt password hashing, sessions in Redis)
+
 ## Architecture
 
 - `apps/api` — Fastify (TypeScript) REST API
@@ -22,8 +31,9 @@ Requirements: Node 20+, Docker.
 ```sh
 npm install
 docker compose -f docker-compose.dev.yml up -d   # postgres + redis
+npm run migrate --workspace apps/api              # apply DB migrations
 npm run dev:api                                   # API on :3000
 npm run dev:web                                   # frontend on :5173 (proxies /api)
 ```
 
-Health check: `curl localhost:3000/api/health`
+Tests: `npm test --workspace apps/api` · Health: `curl localhost:3000/api/health`

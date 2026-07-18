@@ -5,4 +5,6 @@ export const config = {
   databaseUrl:
     process.env.DATABASE_URL ?? 'postgres://split:split@localhost:5432/split',
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  cookieSecret: process.env.COOKIE_SECRET ?? 'dev-only-insecure-secret',
+  isProd: process.env.NODE_ENV === 'production',
 };

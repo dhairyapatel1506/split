@@ -1,0 +1,104 @@
+# Production stack: everything runs in containers, only Nginx is exposed.
+# Pin the project name so the compose directory name can never fork the
+# resources (a renamed checkout would otherwise create a second empty DB).
+name: split
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: split-web
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: split-api
+    # Apply pending migrations, then serve. The advisory lock in the
+    # migration runner makes this safe even with concurrent starts.
+    command: ["sh", "-c", "node dist/migrate.js && node dist/server.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://split:${POSTGRES_PASSWORD:-split}@postgres:5432/split
+      REDIS_URL: redis://redis:6379
+      COOKIE_SECRET: ${COOKIE_SECRET:-dev-only-insecure-secret}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-split@dhairya.cloud}
+      APP_BASE_URL: ${APP_BASE_URL:-https://split.dhairya.cloud}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    image: split-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: ["node", "dist/worker.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://split:${POSTGRES_PASSWORD:-split}@postgres:5432/split
+      REDIS_URL: redis://redis:6379
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-split@dhairya.cloud}
+      APP_BASE_URL: ${APP_BASE_URL:-https://split.dhairya.cloud}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # No host ports on the databases: they are reachable only on the
+  # internal Docker network, never from the internet.
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: split
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-split}
+      POSTGRES_DB: split
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U split"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    # Append-only persistence so sessions and queued jobs survive restarts.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:

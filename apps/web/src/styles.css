@@ -1,3 +1,7 @@
+:root {
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -5,8 +9,8 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
-  background: #f4f5f7;
-  color: #1a1d21;
+  background: #0f1115;
+  color: #e8eaed;
 }
 
 a {
@@ -15,8 +19,8 @@ a {
 }
 
 .topbar {
-  background: #fff;
-  border-bottom: 1px solid #e3e5e8;
+  background: #151821;
+  border-bottom: 1px solid #262b36;
   padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
@@ -33,7 +37,7 @@ a {
   align-items: center;
   gap: 0.75rem;
   font-size: 0.9rem;
-  color: #5a616b;
+  color: #9aa3af;
 }
 
 .container {
@@ -46,8 +50,8 @@ a {
 }
 
 .card {
-  background: #fff;
-  border: 1px solid #e3e5e8;
+  background: #171b24;
+  border: 1px solid #262b36;
   border-radius: 10px;
   padding: 1rem 1.25rem;
 }
@@ -79,7 +83,7 @@ h1 {
 
 .list li {
   padding: 0.65rem 0;
-  border-bottom: 1px solid #eef0f2;
+  border-bottom: 1px solid #232833;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -91,17 +95,17 @@ h1 {
 }
 
 .muted {
-  color: #5a616b;
+  color: #9aa3af;
   font-size: 0.85rem;
 }
 
 .pos {
-  color: #14803c;
+  color: #4ade80;
   font-weight: 600;
 }
 
 .neg {
-  color: #c0392b;
+  color: #f87171;
   font-weight: 600;
 }
 
@@ -110,27 +114,32 @@ select,
 button {
   font: inherit;
   padding: 0.5rem 0.7rem;
-  border: 1px solid #cfd3d8;
+  border: 1px solid #333a47;
   border-radius: 8px;
-  background: #fff;
+  background: #10131a;
+  color: #e8eaed;
+}
+
+input::placeholder {
+  color: #6b7280;
 }
 
 input:focus,
 select:focus {
-  outline: 2px solid #4a7dff;
+  outline: 2px solid #5b8cff;
   border-color: transparent;
 }
 
 button {
-  background: #1a1d21;
-  color: #fff;
+  background: #5b8cff;
+  color: #0f1115;
   border: none;
   cursor: pointer;
   font-weight: 600;
 }
 
 button:hover {
-  background: #33383f;
+  background: #7da3ff;
 }
 
 button:disabled {
@@ -140,19 +149,30 @@ button:disabled {
 
 button.ghost {
   background: transparent;
-  color: #1a1d21;
-  border: 1px solid #cfd3d8;
+  color: #e8eaed;
+  border: 1px solid #333a47;
   font-weight: 500;
 }
 
 button.ghost:hover {
-  background: #f0f1f3;
+  background: #1d222d;
+}
+
+button.danger {
+  background: transparent;
+  color: #f87171;
+  border: 1px solid #4b2a2a;
+  font-weight: 500;
+}
+
+button.danger:hover {
+  background: #2a1a1a;
 }
 
 .error {
-  background: #fdecea;
-  color: #c0392b;
-  border: 1px solid #f5c6c0;
+  background: #2a1a1a;
+  color: #f87171;
+  border: 1px solid #4b2a2a;
   border-radius: 8px;
   padding: 0.6rem 0.9rem;
   font-size: 0.9rem;

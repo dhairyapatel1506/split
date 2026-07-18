@@ -2,15 +2,21 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { requireAuth } from '../auth.js';
 import { db } from '../db.js';
+import { BIN_RETENTION_DAYS } from '../housekeeping.js';
 
 export const groupParams = z.object({ groupId: z.string().uuid() });
 
+// Membership in a *live* group — binned groups behave as if deleted
+// everywhere except the bin/restore endpoints.
 export async function isMember(
   groupId: string,
   userId: string,
 ): Promise<boolean> {
   const { rows } = await db.query(
-    'SELECT 1 FROM group_members WHERE group_id = $1 AND user_id = $2',
+    `SELECT 1
+       FROM group_members m
+       JOIN groups g ON g.id = m.group_id
+      WHERE m.group_id = $1 AND m.user_id = $2 AND g.deleted_at IS NULL`,
     [groupId, userId],
   );
   return rows.length > 0;
@@ -63,11 +69,55 @@ export const groupRoutes: FastifyPluginAsync = async (app) => {
                 WHERE m2.group_id = g.id) AS member_count
          FROM groups g
          JOIN group_members m ON m.group_id = g.id
-        WHERE m.user_id = $1
+        WHERE m.user_id = $1 AND g.deleted_at IS NULL
         ORDER BY g.created_at DESC`,
       [req.userId],
     );
     return rows;
+  });
+
+  // Static route: registered besides /api/groups/:groupId, and the router
+  // always prefers the static match, so a group named "bin" can't shadow it.
+  app.get('/api/groups/bin', async (req) => {
+    const { rows } = await db.query(
+      `SELECT g.id, g.name, g.deleted_at,
+              g.deleted_at + make_interval(days => $2) AS purge_at
+         FROM groups g
+         JOIN group_members m ON m.group_id = g.id
+        WHERE m.user_id = $1 AND g.deleted_at IS NOT NULL
+        ORDER BY g.deleted_at DESC`,
+      [req.userId, BIN_RETENTION_DAYS],
+    );
+    return rows;
+  });
+
+  app.delete('/api/groups/:groupId', async (req, reply) => {
+    const { groupId } = groupParams.parse(req.params);
+    if (!(await isMember(groupId, req.userId))) {
+      return reply.code(404).send({ error: 'Group not found' });
+    }
+    await db.query(
+      'UPDATE groups SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL',
+      [groupId],
+    );
+    return { ok: true };
+  });
+
+  app.post('/api/groups/:groupId/restore', async (req, reply) => {
+    const { groupId } = groupParams.parse(req.params);
+    const { rows } = await db.query(
+      `UPDATE groups g
+          SET deleted_at = NULL
+        WHERE g.id = $1 AND g.deleted_at IS NOT NULL
+          AND EXISTS (SELECT 1 FROM group_members m
+                       WHERE m.group_id = g.id AND m.user_id = $2)
+        RETURNING g.id`,
+      [groupId, req.userId],
+    );
+    if (!rows[0]) {
+      return reply.code(404).send({ error: 'Group not found in bin' });
+    }
+    return { ok: true };
   });
 
   app.get('/api/groups/:groupId', async (req, reply) => {
@@ -78,7 +128,7 @@ export const groupRoutes: FastifyPluginAsync = async (app) => {
       `SELECT g.id, g.name, g.created_at
          FROM groups g
          JOIN group_members m ON m.group_id = g.id
-        WHERE g.id = $1 AND m.user_id = $2`,
+        WHERE g.id = $1 AND m.user_id = $2 AND g.deleted_at IS NULL`,
       [groupId, req.userId],
     );
     if (!rows[0]) return reply.code(404).send({ error: 'Group not found' });

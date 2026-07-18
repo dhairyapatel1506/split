@@ -28,6 +28,7 @@ async function request<T>(
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
+  del: <T>(path: string) => request<T>('DELETE', path),
 };
 
 export type User = { id: string; email: string; name: string };
@@ -36,6 +37,12 @@ export type Group = {
   name: string;
   created_at: string;
   member_count: number;
+};
+export type BinnedGroup = {
+  id: string;
+  name: string;
+  deleted_at: string;
+  purge_at: string;
 };
 export type Member = { id: string; name: string; email: string };
 export type GroupDetail = {

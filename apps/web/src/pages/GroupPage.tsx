@@ -9,6 +9,7 @@ import {
   type GroupDetail,
   type User,
 } from '../api.js';
+import { usePoll } from '../hooks.js';
 
 export function GroupPage({ me }: { me: User }) {
   const { groupId } = useParams<{ groupId: string }>();
@@ -34,6 +35,7 @@ export function GroupPage({ me }: { me: User }) {
       );
   }, [groupId]);
   useEffect(load, [load]);
+  usePoll(load, 5_000);
 
   if (error) {
     return (

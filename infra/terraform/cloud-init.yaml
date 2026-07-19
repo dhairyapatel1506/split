@@ -1,0 +1,20 @@
+#cloud-config
+# First-boot provisioning: everything a fresh VM needs to run the stack.
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - git
+
+runcmd:
+  # Docker Engine + compose plugin from Docker's official repository.
+  - curl -fsSL https://get.docker.com | sh
+  - usermod -aG docker ubuntu
+  # Oracle's Ubuntu images ship host iptables rules that reject all
+  # inbound traffic except SSH — the cloud security list alone is not
+  # enough. Open HTTP/HTTPS at the OS level too, and persist it.
+  - iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+  - iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+  - netfilter-persistent save

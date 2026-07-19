@@ -1,0 +1,7 @@
+# State files record every resource attribute, including sensitive ones.
+*.tfstate
+*.tfstate.*
+.terraform/
+# Contains account identifiers; each machine keeps its own copy.
+terraform.tfvars
+crash.log

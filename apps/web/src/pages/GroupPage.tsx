@@ -440,8 +440,16 @@ function MembersCard({
         />
         <button className="ghost">Add member</button>
       </form>
-      {error && <div className="error">{error}</div>}
-      {notice && <div className="notice">{notice}</div>}
+      {error && (
+        <div className="error" style={{ marginTop: '0.75rem' }}>
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div className="notice" style={{ marginTop: '0.75rem' }}>
+          {notice}
+        </div>
+      )}
     </div>
   );
 }

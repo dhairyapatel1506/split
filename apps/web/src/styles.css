@@ -34,11 +34,16 @@ a {
 
 .brand-logo {
   height: 1.6rem;
+  width: auto;
   display: block;
 }
 
 .auth-logo {
   height: 2.6rem;
+  width: auto;
+  /* Flex column parent stretches items by default — keep the image at
+     its natural aspect ratio. */
+  align-self: flex-start;
   margin-bottom: 0.5rem;
 }
 

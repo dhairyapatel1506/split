@@ -4,7 +4,9 @@ Share expenses with friends, settle up without the awkward math. Live at
 [split.dhairya.cloud](https://split.dhairya.cloud).
 
 Fully self-hosted and infrastructure-as-code: everything from the app code to
-the server it runs on is defined in this repo.
+the server it runs on is defined in this repo. For a guided tour of how it
+all fits together — the money math, the containers, the Terraform, the sharp
+edges — see [HOW-IT-WORKS.md](HOW-IT-WORKS.md).
 
 ## Features
 

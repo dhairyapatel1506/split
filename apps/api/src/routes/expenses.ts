@@ -41,6 +41,44 @@ const settlementBody = z.object({
   note: z.string().max(200).optional(),
 });
 
+type ExpenseBody = z.infer<typeof expenseBody>;
+type ResolvedShares =
+  | { shares: { userId: string; shareCents: number }[] }
+  | { error: string };
+
+// Turn a create/edit request into concrete per-user shares, enforcing the
+// same rules either way: participants are current members, exact shares
+// sum to the total.
+function resolveShares(
+  body: ExpenseBody,
+  members: Set<string>,
+): ResolvedShares {
+  if (body.split.type === 'equal') {
+    const ids = body.split.userIds ?? [...members];
+    if (!ids.every((id) => members.has(id))) {
+      return { error: 'All participants must be group members' };
+    }
+    return { shares: equalSplit(body.amountCents, ids) };
+  }
+  const ids = body.split.shares.map((s) => s.userId);
+  if (new Set(ids).size !== ids.length) {
+    return { error: 'Duplicate user in shares' };
+  }
+  if (!ids.every((id) => members.has(id))) {
+    return { error: 'All participants must be group members' };
+  }
+  const sum = body.split.shares.reduce((a, s) => a + s.amountCents, 0);
+  if (sum !== body.amountCents) {
+    return { error: `Shares add up to ${sum}, expected ${body.amountCents}` };
+  }
+  return {
+    shares: body.split.shares.map((s) => ({
+      userId: s.userId,
+      shareCents: s.amountCents,
+    })),
+  };
+}
+
 export const expenseRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', requireAuth);
 
@@ -56,36 +94,11 @@ export const expenseRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(400).send({ error: 'Payer is not a group member' });
     }
 
-    let shares: { userId: string; shareCents: number }[];
-    if (body.split.type === 'equal') {
-      const ids = body.split.userIds ?? [...members];
-      if (!ids.every((id) => members.has(id))) {
-        return reply
-          .code(400)
-          .send({ error: 'All participants must be group members' });
-      }
-      shares = equalSplit(body.amountCents, ids);
-    } else {
-      const ids = body.split.shares.map((s) => s.userId);
-      if (new Set(ids).size !== ids.length) {
-        return reply.code(400).send({ error: 'Duplicate user in shares' });
-      }
-      if (!ids.every((id) => members.has(id))) {
-        return reply
-          .code(400)
-          .send({ error: 'All participants must be group members' });
-      }
-      const sum = body.split.shares.reduce((a, s) => a + s.amountCents, 0);
-      if (sum !== body.amountCents) {
-        return reply.code(400).send({
-          error: `Shares add up to ${sum}, expected ${body.amountCents}`,
-        });
-      }
-      shares = body.split.shares.map((s) => ({
-        userId: s.userId,
-        shareCents: s.amountCents,
-      }));
+    const resolved = resolveShares(body, members);
+    if ('error' in resolved) {
+      return reply.code(400).send({ error: resolved.error });
     }
+    const { shares } = resolved;
 
     const client = await db.connect();
     try {
@@ -120,7 +133,7 @@ export const expenseRoutes: FastifyPluginAsync = async (app) => {
     }
     const { rows: expenses } = await db.query(
       `SELECT e.id, e.description, e.amount_cents, e.currency, e.paid_by,
-              u.name AS paid_by_name, e.spent_at, e.created_at
+              u.name AS paid_by_name, e.spent_at, e.created_at, e.updated_at
          FROM expenses e JOIN users u ON u.id = e.paid_by
         WHERE e.group_id = $1 ORDER BY e.created_at DESC`,
       [groupId],
@@ -138,6 +151,61 @@ export const expenseRoutes: FastifyPluginAsync = async (app) => {
       byExpense.set(s.expense_id, list);
     }
     return expenses.map((e) => ({ ...e, shares: byExpense.get(e.id) ?? [] }));
+  });
+
+  app.put('/api/groups/:groupId/expenses/:expenseId', async (req, reply) => {
+    const { groupId, expenseId } = z
+      .object({ groupId: z.string().uuid(), expenseId: z.string().uuid() })
+      .parse(req.params);
+    if (!(await isMember(groupId, req.userId))) {
+      return reply.code(404).send({ error: 'Group not found' });
+    }
+    const body = expenseBody.parse(req.body);
+    const members = await memberIds(groupId);
+    const paidBy = body.paidBy ?? req.userId;
+    if (!members.has(paidBy)) {
+      return reply.code(400).send({ error: 'Payer is not a group member' });
+    }
+    const resolved = resolveShares(body, members);
+    if ('error' in resolved) {
+      return reply.code(400).send({ error: resolved.error });
+    }
+
+    const client = await db.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `UPDATE expenses
+            SET description = $3, amount_cents = $4, paid_by = $5,
+                updated_at = now()
+          WHERE id = $1 AND group_id = $2
+          RETURNING id, description, amount_cents, currency, paid_by,
+                    spent_at, created_at, updated_at`,
+        [expenseId, groupId, body.description, body.amountCents, paidBy],
+      );
+      if (!rows[0]) {
+        await client.query('ROLLBACK');
+        return reply.code(404).send({ error: 'Expense not found' });
+      }
+      // Shares are derived data — replace wholesale rather than diffing.
+      await client.query('DELETE FROM expense_shares WHERE expense_id = $1', [
+        expenseId,
+      ]);
+      for (const s of resolved.shares) {
+        await client.query(
+          `INSERT INTO expense_shares (expense_id, user_id, share_cents)
+           VALUES ($1, $2, $3)`,
+          [expenseId, s.userId, s.shareCents],
+        );
+      }
+      await client.query('COMMIT');
+      return { ...rows[0], shares: resolved.shares };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
   });
 
   app.delete(

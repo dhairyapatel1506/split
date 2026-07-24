@@ -10,7 +10,8 @@ the server it runs on is defined in this repo.
 
 - Groups with email invites — existing users are added instantly, new
   people get a signup link and join automatically when they register
-- Expenses with equal or exact splits (money handled as integer paise/cents)
+- Expenses with equal or exact splits (money handled as integer paise/cents),
+  editable after the fact — balances always recalculate from the record
 - Live balances with debt simplification — at most N−1 transfers to settle a
   whole group
 - Recorded settlements ("paid back via GPay")

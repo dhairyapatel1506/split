@@ -10,7 +10,7 @@ import {
   type User,
 } from '../api.js';
 import { usePoll } from '../hooks.js';
-import { RefreshIcon, TrashIcon, XIcon } from '../icons.js';
+import { PencilIcon, RefreshIcon, TrashIcon, XIcon } from '../icons.js';
 
 export function GroupPage({ me }: { me: User }) {
   const { groupId } = useParams<{ groupId: string }>();
@@ -75,7 +75,7 @@ export function GroupPage({ me }: { me: User }) {
         onChanged={load}
       />
       <AddExpenseCard me={me} group={group} onAdded={load} />
-      <ExpensesCard expenses={expenses} groupId={group.id} onChanged={load} />
+      <ExpensesCard me={me} group={group} expenses={expenses} onChanged={load} />
       <MembersCard me={me} group={group} onChanged={load} />
     </main>
   );
@@ -153,20 +153,44 @@ function BalancesCard({
   );
 }
 
-function AddExpenseCard({
+type ExpensePayload = {
+  description: string;
+  amountCents: number;
+  paidBy: string;
+  split: { type: 'equal'; userIds: string[] };
+};
+
+// Shared by "add expense" and "edit expense" — same fields, same
+// validation, different submit target.
+function ExpenseForm({
   me,
   group,
-  onAdded,
+  initial,
+  submitLabel,
+  onSubmit,
+  onCancel,
 }: {
   me: User;
   group: GroupDetail;
-  onAdded: () => void;
+  initial?: Expense;
+  submitLabel: string;
+  onSubmit: (payload: ExpensePayload) => Promise<void>;
+  onCancel?: () => void;
 }) {
-  const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('');
-  const [paidBy, setPaidBy] = useState(me.id);
-  const [participants, setParticipants] = useState<Set<string>>(
-    () => new Set(group.members.map((m) => m.id)),
+  const isMember = (id: string) => group.members.some((m) => m.id === id);
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [amount, setAmount] = useState(
+    initial ? (initial.amount_cents / 100).toFixed(2) : '',
+  );
+  // Departed members can linger in old expenses; only current members are
+  // selectable (and accepted by the API).
+  const [paidBy, setPaidBy] = useState(
+    initial && isMember(initial.paid_by) ? initial.paid_by : me.id,
+  );
+  const [participants, setParticipants] = useState<Set<string>>(() =>
+    initial
+      ? new Set(initial.shares.map((s) => s.user_id).filter(isMember))
+      : new Set(group.members.map((m) => m.id)),
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -194,7 +218,7 @@ function AddExpenseCard({
     }
     setBusy(true);
     try {
-      await api.post(`/api/groups/${group.id}/expenses`, {
+      await onSubmit({
         description,
         amountCents,
         paidBy,
@@ -202,79 +226,110 @@ function AddExpenseCard({
       });
       setDescription('');
       setAmount('');
-      onAdded();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Failed to add');
+      setError(err instanceof ApiError ? err.message : 'Failed to save');
     } finally {
       setBusy(false);
     }
   };
 
   return (
+    <form className="stack" onSubmit={submit}>
+      <div className="row">
+        <input
+          placeholder="What was it? (e.g. Dinner)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          required
+          style={{ flex: 2, minWidth: '10rem' }}
+        />
+        <input
+          type="number"
+          step="0.01"
+          min="0.01"
+          placeholder="₹ 0.00"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          required
+          style={{ flex: 1, minWidth: '6rem' }}
+        />
+      </div>
+      <div className="row">
+        <span className="muted">Paid by</span>
+        <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+          {group.members.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.id === me.id ? 'You' : m.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <span className="muted">Split equally between</span>
+        <div className="checks">
+          {group.members.map((m) => (
+            <label key={m.id}>
+              <input
+                type="checkbox"
+                checked={participants.has(m.id)}
+                onChange={() => toggle(m.id)}
+              />
+              {m.id === me.id ? 'You' : m.name}
+            </label>
+          ))}
+        </div>
+      </div>
+      {error && <div className="error">{error}</div>}
+      <div className="row">
+        <button disabled={busy}>{submitLabel}</button>
+        {onCancel && (
+          <button type="button" className="ghost" onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function AddExpenseCard({
+  me,
+  group,
+  onAdded,
+}: {
+  me: User;
+  group: GroupDetail;
+  onAdded: () => void;
+}) {
+  return (
     <div className="card">
       <h2>Add expense</h2>
-      <form className="stack" onSubmit={submit}>
-        <div className="row">
-          <input
-            placeholder="What was it? (e.g. Dinner)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            required
-            style={{ flex: 2, minWidth: '10rem' }}
-          />
-          <input
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder="₹ 0.00"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            required
-            style={{ flex: 1, minWidth: '6rem' }}
-          />
-        </div>
-        <div className="row">
-          <span className="muted">Paid by</span>
-          <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
-            {group.members.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.id === me.id ? 'You' : m.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <span className="muted">Split equally between</span>
-          <div className="checks">
-            {group.members.map((m) => (
-              <label key={m.id}>
-                <input
-                  type="checkbox"
-                  checked={participants.has(m.id)}
-                  onChange={() => toggle(m.id)}
-                />
-                {m.id === me.id ? 'You' : m.name}
-              </label>
-            ))}
-          </div>
-        </div>
-        {error && <div className="error">{error}</div>}
-        <button disabled={busy}>Add expense</button>
-      </form>
+      <ExpenseForm
+        me={me}
+        group={group}
+        submitLabel="Add expense"
+        onSubmit={async (payload) => {
+          await api.post(`/api/groups/${group.id}/expenses`, payload);
+          onAdded();
+        }}
+      />
     </div>
   );
 }
 
 function ExpensesCard({
+  me,
+  group,
   expenses,
-  groupId,
   onChanged,
 }: {
+  me: User;
+  group: GroupDetail;
   expenses: Expense[];
-  groupId: string;
   onChanged: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const remove = async (e: Expense) => {
     if (
@@ -286,7 +341,7 @@ function ExpensesCard({
     }
     setError(null);
     try {
-      await api.del(`/api/groups/${groupId}/expenses/${e.id}`);
+      await api.del(`/api/groups/${group.id}/expenses/${e.id}`);
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to delete');
@@ -301,29 +356,58 @@ function ExpensesCard({
         <p className="muted">Nothing yet — add the first expense above.</p>
       ) : (
         <ul className="list">
-          {expenses.map((e) => (
-            <li key={e.id}>
-              <span style={{ flex: 1 }}>
-                <strong>{e.description}</strong>
-                <br />
-                <span className="muted">
-                  paid by {e.paid_by_name} · split {e.shares.length} way
-                  {e.shares.length === 1 ? '' : 's'}
+          {expenses.map((e) =>
+            editingId === e.id ? (
+              <li key={e.id} style={{ display: 'block' }}>
+                <ExpenseForm
+                  me={me}
+                  group={group}
+                  initial={e}
+                  submitLabel="Save changes"
+                  onCancel={() => setEditingId(null)}
+                  onSubmit={async (payload) => {
+                    await api.put(
+                      `/api/groups/${group.id}/expenses/${e.id}`,
+                      payload,
+                    );
+                    setEditingId(null);
+                    onChanged();
+                  }}
+                />
+              </li>
+            ) : (
+              <li key={e.id}>
+                <span style={{ flex: 1 }}>
+                  <strong>{e.description}</strong>
+                  <br />
+                  <span className="muted">
+                    paid by {e.paid_by_name} · split {e.shares.length} way
+                    {e.shares.length === 1 ? '' : 's'}
+                    {e.updated_at ? ' · edited' : ''}
+                  </span>
                 </span>
-              </span>
-              <span style={{ fontWeight: 600 }}>
-                {formatMoney(e.amount_cents)}
-              </span>
-              <button
-                className="danger icon"
-                title="Delete expense"
-                aria-label={`Delete ${e.description}`}
-                onClick={() => remove(e)}
-              >
-                <TrashIcon />
-              </button>
-            </li>
-          ))}
+                <span style={{ fontWeight: 600 }}>
+                  {formatMoney(e.amount_cents)}
+                </span>
+                <button
+                  className="ghost icon"
+                  title="Edit expense"
+                  aria-label={`Edit ${e.description}`}
+                  onClick={() => setEditingId(e.id)}
+                >
+                  <PencilIcon />
+                </button>
+                <button
+                  className="danger icon"
+                  title="Delete expense"
+                  aria-label={`Delete ${e.description}`}
+                  onClick={() => remove(e)}
+                >
+                  <TrashIcon />
+                </button>
+              </li>
+            ),
+          )}
         </ul>
       )}
     </div>

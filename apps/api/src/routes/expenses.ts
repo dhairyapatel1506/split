@@ -253,6 +253,48 @@ export const expenseRoutes: FastifyPluginAsync = async (app) => {
     return reply.code(201).send(rows[0]);
   });
 
+  app.get('/api/groups/:groupId/settlements', async (req, reply) => {
+    const { groupId } = groupParams.parse(req.params);
+    if (!(await isMember(groupId, req.userId))) {
+      return reply.code(404).send({ error: 'Group not found' });
+    }
+    const { rows } = await db.query(
+      `SELECT s.id, s.from_user, s.to_user, s.amount_cents, s.note,
+              s.created_at, fu.name AS from_name, tu.name AS to_name
+         FROM settlements s
+         JOIN users fu ON fu.id = s.from_user
+         JOIN users tu ON tu.id = s.to_user
+        WHERE s.group_id = $1 ORDER BY s.created_at DESC`,
+      [groupId],
+    );
+    return rows;
+  });
+
+  // A settlement is a recorded fact like an expense: mis-recorded payments
+  // are corrected by deleting the record, and balances recompute.
+  app.delete(
+    '/api/groups/:groupId/settlements/:settlementId',
+    async (req, reply) => {
+      const { groupId, settlementId } = z
+        .object({
+          groupId: z.string().uuid(),
+          settlementId: z.string().uuid(),
+        })
+        .parse(req.params);
+      if (!(await isMember(groupId, req.userId))) {
+        return reply.code(404).send({ error: 'Group not found' });
+      }
+      const { rows } = await db.query(
+        'DELETE FROM settlements WHERE id = $1 AND group_id = $2 RETURNING id',
+        [settlementId, groupId],
+      );
+      if (!rows[0]) {
+        return reply.code(404).send({ error: 'Settlement not found' });
+      }
+      return { ok: true };
+    },
+  );
+
   app.get('/api/groups/:groupId/balances', async (req, reply) => {
     const { groupId } = groupParams.parse(req.params);
     if (!(await isMember(groupId, req.userId))) {

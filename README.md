@@ -14,7 +14,8 @@ the server it runs on is defined in this repo.
   editable after the fact — balances always recalculate from the record
 - Live balances with debt simplification — at most N−1 transfers to settle a
   whole group
-- Recorded settlements ("paid back via GPay")
+- Recorded settlements ("paid back via GPay") — reviewable and removable, so
+  a mis-click never locks in a payment that did not happen
 - Cookie-session auth (scrypt password hashing, sessions in Redis)
 - Email notifications: group invites, weekly "you owe" reminders (Brevo;
   logged to console when no `BREVO_API_KEY` is set)

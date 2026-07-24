@@ -67,6 +67,16 @@ export type Expense = {
   updated_at: string | null;
   shares: Share[];
 };
+export type Settlement = {
+  id: string;
+  from_user: string;
+  to_user: string;
+  from_name: string;
+  to_name: string;
+  amount_cents: number;
+  note: string | null;
+  created_at: string;
+};
 export type Balances = {
   balances: { userId: string; name: string; netCents: number }[];
   suggestedSettlements: {

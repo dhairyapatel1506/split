@@ -7,6 +7,7 @@ import {
   type Balances,
   type Expense,
   type GroupDetail,
+  type Settlement,
   type User,
 } from '../api.js';
 import { usePoll } from '../hooks.js';
@@ -16,6 +17,7 @@ export function GroupPage({ me }: { me: User }) {
   const { groupId } = useParams<{ groupId: string }>();
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [balances, setBalances] = useState<Balances | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,11 +27,13 @@ export function GroupPage({ me }: { me: User }) {
       api.get<GroupDetail>(`/api/groups/${groupId}`),
       api.get<Expense[]>(`/api/groups/${groupId}/expenses`),
       api.get<Balances>(`/api/groups/${groupId}/balances`),
+      api.get<Settlement[]>(`/api/groups/${groupId}/settlements`),
     ])
-      .then(([g, e, b]) => {
+      .then(([g, e, b, s]) => {
         setGroup(g);
         setExpenses(e);
         setBalances(b);
+        setSettlements(s);
       })
       .catch((err) =>
         setError(err instanceof ApiError ? err.message : 'Failed to load'),
@@ -76,6 +80,14 @@ export function GroupPage({ me }: { me: User }) {
       />
       <AddExpenseCard me={me} group={group} onAdded={load} />
       <ExpensesCard me={me} group={group} expenses={expenses} onChanged={load} />
+      {settlements.length > 0 && (
+        <SettlementsCard
+          me={me}
+          groupId={group.id}
+          settlements={settlements}
+          onChanged={load}
+        />
+      )}
       <MembersCard me={me} group={group} onChanged={load} />
     </main>
   );
@@ -98,6 +110,14 @@ function BalancesCard({
   const allEven = balances.balances.every((b) => b.netCents === 0);
 
   const settle = async (toUserId: string, amountCents: number) => {
+    if (
+      !window.confirm(
+        `Record that you paid ${memberName(toUserId)} ${formatMoney(amountCents)}? ` +
+          `Only confirm once the money has actually changed hands.`,
+      )
+    ) {
+      return;
+    }
     setError(null);
     try {
       await api.post(`/api/groups/${groupId}/settlements`, {
@@ -410,6 +430,74 @@ function ExpensesCard({
           )}
         </ul>
       )}
+    </div>
+  );
+}
+
+function SettlementsCard({
+  me,
+  groupId,
+  settlements,
+  onChanged,
+}: {
+  me: User;
+  groupId: string;
+  settlements: Settlement[];
+  onChanged: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = async (s: Settlement) => {
+    if (
+      !window.confirm(
+        `Remove the record of ${s.from_name} paying ${s.to_name} ` +
+          `${formatMoney(s.amount_cents)}? The debt comes back.`,
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      await api.del(`/api/groups/${groupId}/settlements/${s.id}`);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to remove');
+    }
+  };
+
+  return (
+    <div className="card">
+      <h2>Payments</h2>
+      {error && <div className="error">{error}</div>}
+      <ul className="list">
+        {settlements.map((s) => (
+          <li key={s.id}>
+            <span style={{ flex: 1 }}>
+              {s.from_user === me.id ? 'You' : s.from_name} paid{' '}
+              {s.to_user === me.id ? 'you' : s.to_name}
+              <br />
+              <span className="muted">
+                {new Date(s.created_at).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </span>
+            </span>
+            <span style={{ fontWeight: 600 }}>
+              {formatMoney(s.amount_cents)}
+            </span>
+            <button
+              className="danger icon"
+              title="Remove this payment record"
+              aria-label={`Remove payment of ${formatMoney(s.amount_cents)} from ${s.from_name} to ${s.to_name}`}
+              onClick={() => remove(s)}
+            >
+              <TrashIcon />
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

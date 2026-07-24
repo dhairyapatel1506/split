@@ -28,7 +28,7 @@ export function AuthPage({ onAuth }: { onAuth: (user: User) => void }) {
 
   return (
     <div className="auth-wrap">
-      <h1>Split</h1>
+      <img src="/logo.png" alt="Split" className="auth-logo" />
       <p className="muted">
         Share expenses with friends, settle up without the awkward math.
       </p>

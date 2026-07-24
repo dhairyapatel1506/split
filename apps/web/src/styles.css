@@ -32,6 +32,16 @@ a {
   font-size: 1.15rem;
 }
 
+.brand-logo {
+  height: 1.6rem;
+  display: block;
+}
+
+.auth-logo {
+  height: 2.6rem;
+  margin-bottom: 0.5rem;
+}
+
 .topbar .user {
   display: flex;
   align-items: center;

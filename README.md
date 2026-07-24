@@ -1,4 +1,4 @@
-# Split
+<p align="center"><img src="split.png" alt="Split" width="260"></p>
 
 Share expenses with friends, settle up without the awkward math. Live at
 [split.dhairya.cloud](https://split.dhairya.cloud).
@@ -18,6 +18,8 @@ the server it runs on is defined in this repo.
 - Email notifications: group invites, weekly "you owe" reminders (Brevo;
   logged to console when no `BREVO_API_KEY` is set)
 - Group bin with 30-day retention, purged by a scheduled job
+- Account deletion (settled-up accounts only) — shared expense history is
+  anonymized, never altered
 
 ## Architecture
 

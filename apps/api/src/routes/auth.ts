@@ -23,14 +23,34 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const email = body.email.toLowerCase();
     const passwordHash = await hashPassword(body.password);
     let user;
+    const client = await db.connect();
     try {
-      const { rows } = await db.query(
+      // One transaction: the account and its invite redemptions land
+      // together or not at all.
+      await client.query('BEGIN');
+      const { rows } = await client.query(
         `INSERT INTO users (email, name, password_hash)
          VALUES ($1, $2, $3) RETURNING id, email, name`,
         [email, body.name, passwordHash],
       );
       user = rows[0];
+      // Redeem pending group invites for this email (live groups only),
+      // then clear them — they are single-use by design.
+      await client.query(
+        `INSERT INTO group_members (group_id, user_id)
+         SELECT i.group_id, $2
+           FROM group_invites i
+           JOIN groups g ON g.id = i.group_id AND g.deleted_at IS NULL
+          WHERE i.email = $1
+         ON CONFLICT DO NOTHING`,
+        [email, user.id],
+      );
+      await client.query('DELETE FROM group_invites WHERE email = $1', [
+        email,
+      ]);
+      await client.query('COMMIT');
     } catch (err) {
+      await client.query('ROLLBACK');
       // 23505 = unique_violation on users.email
       if ((err as { code?: string }).code === '23505') {
         return reply
@@ -38,6 +58,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
           .send({ error: 'An account with this email already exists' });
       }
       throw err;
+    } finally {
+      client.release();
     }
     await createSession(reply, user.id);
     return reply.code(201).send(user);

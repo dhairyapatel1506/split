@@ -152,13 +152,38 @@ export const groupRoutes: FastifyPluginAsync = async (app) => {
       [groupId, req.userId],
     );
     if (!rows[0]) return reply.code(404).send({ error: 'Group not found' });
-    const members = await db.query(
-      `SELECT u.id, u.name, u.email
-         FROM group_members m JOIN users u ON u.id = m.user_id
-        WHERE m.group_id = $1 ORDER BY m.joined_at`,
-      [groupId],
+    const [members, invites] = await Promise.all([
+      db.query(
+        `SELECT u.id, u.name, u.email
+           FROM group_members m JOIN users u ON u.id = m.user_id
+          WHERE m.group_id = $1 ORDER BY m.joined_at`,
+        [groupId],
+      ),
+      db.query(
+        `SELECT email, created_at FROM group_invites
+          WHERE group_id = $1 ORDER BY created_at`,
+        [groupId],
+      ),
+    ]);
+    return { ...rows[0], members: members.rows, invites: invites.rows };
+  });
+
+  // Withdraw a pending invite. The email lives in the path — encoded by
+  // the client, decoded by the router.
+  app.delete('/api/groups/:groupId/invites/:email', async (req, reply) => {
+    const { groupId } = groupParams.parse(req.params);
+    const email = z
+      .object({ email: z.string().email() })
+      .parse(req.params).email.toLowerCase();
+    if (!(await isMember(groupId, req.userId))) {
+      return reply.code(404).send({ error: 'Group not found' });
+    }
+    const { rowCount } = await db.query(
+      'DELETE FROM group_invites WHERE group_id = $1 AND email = $2',
+      [groupId, email],
     );
-    return { ...rows[0], members: members.rows };
+    if (!rowCount) return reply.code(404).send({ error: 'Invite not found' });
+    return { ok: true };
   });
 
   app.delete('/api/groups/:groupId/members/:userId', async (req, reply) => {
@@ -220,14 +245,36 @@ export const groupRoutes: FastifyPluginAsync = async (app) => {
     if (!(await isMember(groupId, req.userId))) {
       return reply.code(404).send({ error: 'Group not found' });
     }
-    const { email } = addMemberBody.parse(req.body);
+    const email = addMemberBody.parse(req.body).email.toLowerCase();
     const { rows } = await db.query('SELECT id FROM users WHERE email = $1', [
-      email.toLowerCase(),
+      email,
     ]);
     if (!rows[0]) {
-      return reply
-        .code(404)
-        .send({ error: 'No account with that email — ask them to sign up first' });
+      // No account yet: store a pending invite (redeemed at signup) and
+      // email them a signup link. 202 — accepted, completes later.
+      await db.query(
+        `INSERT INTO group_invites (group_id, email, invited_by)
+         VALUES ($1, $2, $3) ON CONFLICT (group_id, email) DO NOTHING`,
+        [groupId, email, req.userId],
+      );
+      try {
+        const [group, inviter] = await Promise.all([
+          db.query('SELECT name FROM groups WHERE id = $1', [groupId]),
+          db.query('SELECT name FROM users WHERE id = $1', [req.userId]),
+        ]);
+        await emailsQueue.add('send', {
+          to: email,
+          subject: `${inviter.rows[0].name} invited you to "${group.rows[0].name}" on Split`,
+          text:
+            `${inviter.rows[0].name} is splitting expenses with you in ` +
+            `"${group.rows[0].name}" on Split.\n\n` +
+            `Sign up with this email address and you'll join the group ` +
+            `automatically: ${config.appBaseUrl}\n\n— Split`,
+        });
+      } catch (err) {
+        req.log.error({ err }, 'failed to enqueue signup invite email');
+      }
+      return reply.code(202).send({ invited: true });
     }
     const inserted = await db.query(
       `INSERT INTO group_members (group_id, user_id)
@@ -244,7 +291,7 @@ export const groupRoutes: FastifyPluginAsync = async (app) => {
           db.query('SELECT name FROM users WHERE id = $1', [req.userId]),
         ]);
         await emailsQueue.add('send', {
-          to: email.toLowerCase(),
+          to: email,
           subject: `${inviter.rows[0].name} added you to "${group.rows[0].name}" on Split`,
           text:
             `${inviter.rows[0].name} added you to the group ` +

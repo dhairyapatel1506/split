@@ -45,11 +45,13 @@ export type BinnedGroup = {
   purge_at: string;
 };
 export type Member = { id: string; name: string; email: string };
+export type Invite = { email: string; created_at: string };
 export type GroupDetail = {
   id: string;
   name: string;
   created_at: string;
   members: Member[];
+  invites: Invite[];
 };
 export type Share = { user_id: string; share_cents: number };
 export type Expense = {

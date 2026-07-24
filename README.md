@@ -8,7 +8,8 @@ the server it runs on is defined in this repo.
 
 ## Features
 
-- Groups with email-based member invites
+- Groups with email invites — existing users are added instantly, new
+  people get a signup link and join automatically when they register
 - Expenses with equal or exact splits (money handled as integer paise/cents)
 - Live balances with debt simplification — at most N−1 transfers to settle a
   whole group

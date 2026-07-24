@@ -341,16 +341,39 @@ function MembersCard({
 }) {
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     try {
-      await api.post(`/api/groups/${group.id}/members`, { email });
+      const res = await api.post<{ invited?: boolean }>(
+        `/api/groups/${group.id}/members`,
+        { email },
+      );
+      if (res.invited) {
+        setNotice(
+          `Invitation sent to ${email} — they'll join as soon as they sign up.`,
+        );
+      }
       setEmail('');
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Failed to add');
+    }
+  };
+
+  const cancelInvite = async (inviteEmail: string) => {
+    setError(null);
+    setNotice(null);
+    try {
+      await api.del(
+        `/api/groups/${group.id}/invites/${encodeURIComponent(inviteEmail)}`,
+      );
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to cancel');
     }
   };
 
@@ -372,7 +395,6 @@ function MembersCard({
   return (
     <div className="card">
       <h2>Members</h2>
-      {error && <div className="error">{error}</div>}
       <ul className="list">
         {group.members.map((m) => (
           <li key={m.id}>
@@ -390,11 +412,27 @@ function MembersCard({
             </button>
           </li>
         ))}
+        {group.invites.map((inv) => (
+          <li key={inv.email}>
+            <span style={{ flex: 1 }} className="muted">
+              {inv.email}
+            </span>
+            <span className="muted">invited — waiting for signup</span>
+            <button
+              className="ghost icon"
+              title={`Cancel invite for ${inv.email}`}
+              aria-label={`Cancel invite for ${inv.email}`}
+              onClick={() => cancelInvite(inv.email)}
+            >
+              <XIcon />
+            </button>
+          </li>
+        ))}
       </ul>
       <form className="row" onSubmit={add} style={{ marginTop: '0.5rem' }}>
         <input
           type="email"
-          placeholder="Invite by email (they need an account)"
+          placeholder="Invite by email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -403,6 +441,7 @@ function MembersCard({
         <button className="ghost">Add member</button>
       </form>
       {error && <div className="error">{error}</div>}
+      {notice && <div className="notice">{notice}</div>}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Split
 
-Share expenses with friends, settle up without the awkward math. Live (soon) at
+Share expenses with friends, settle up without the awkward math. Live at
 [split.dhairya.cloud](https://split.dhairya.cloud).
 
 Fully self-hosted and infrastructure-as-code: everything from the app code to

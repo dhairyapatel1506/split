@@ -19,7 +19,8 @@ export const config = {
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
   // Where bug reports land. Fixed server-side on purpose: user input can
-  // never choose an email recipient.
+  // never choose an email recipient. || not ??: compose passes an empty
+  // string when the var is absent from .env, and '' must also fall back.
   bugReportEmail:
-    process.env.BUG_REPORT_EMAIL ?? 'dhairyapatel.cloud@gmail.com',
+    process.env.BUG_REPORT_EMAIL || 'dhairyapatel.cloud@gmail.com',
 };

@@ -18,4 +18,8 @@ export const config = {
   // Google OAuth credentials; when unset, Google sign-in returns 503.
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+  // Where bug reports land. Fixed server-side on purpose: user input can
+  // never choose an email recipient.
+  bugReportEmail:
+    process.env.BUG_REPORT_EMAIL ?? 'dhairyapatel.cloud@gmail.com',
 };

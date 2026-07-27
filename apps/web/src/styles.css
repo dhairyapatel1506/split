@@ -126,6 +126,7 @@ h1 {
 
 input,
 select,
+textarea,
 button {
   font: inherit;
   padding: 0.5rem 0.7rem;
@@ -135,12 +136,18 @@ button {
   color: #e8eaed;
 }
 
-input::placeholder {
+textarea {
+  resize: vertical;
+}
+
+input::placeholder,
+textarea::placeholder {
   color: #6b7280;
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   outline: 2px solid #5b8cff;
   border-color: transparent;
 }

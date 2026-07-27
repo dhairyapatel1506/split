@@ -55,6 +55,7 @@ services:
       APP_BASE_URL: ${APP_BASE_URL:-https://split.dhairya.cloud}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      BUG_REPORT_EMAIL: ${BUG_REPORT_EMAIL:-}
     healthcheck:
       test:
         - CMD
@@ -85,6 +86,7 @@ services:
       BREVO_API_KEY: ${BREVO_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-split@dhairya.cloud}
       APP_BASE_URL: ${APP_BASE_URL:-https://split.dhairya.cloud}
+      BUG_REPORT_EMAIL: ${BUG_REPORT_EMAIL:-}
     depends_on:
       postgres:
         condition: service_healthy

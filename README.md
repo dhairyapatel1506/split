@@ -26,6 +26,9 @@ edges — see [HOW-IT-WORKS.md](HOW-IT-WORKS.md).
 - Group bin with 30-day retention, purged by a scheduled job
 - Account deletion (settled-up accounts only) — shared expense history is
   anonymized, never altered
+- In-app bug reports with screenshot attachments — validated as real
+  images and rate-limited per user, so the reporting channel can't be
+  abused for spam
 
 ## Architecture
 

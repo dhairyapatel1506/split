@@ -10,7 +10,12 @@ const log = pino();
 export async function sendEmail(msg: EmailJob): Promise<void> {
   if (!config.brevoApiKey) {
     log.info(
-      { to: msg.to, subject: msg.subject, text: msg.text },
+      {
+        to: msg.to,
+        subject: msg.subject,
+        text: msg.text,
+        attachments: msg.attachments?.map((a) => a.name),
+      },
       'email (dev transport — set BREVO_API_KEY to send for real)',
     );
     return;
@@ -27,6 +32,14 @@ export async function sendEmail(msg: EmailJob): Promise<void> {
       to: [{ email: msg.to }],
       subject: msg.subject,
       textContent: msg.text,
+      ...(msg.attachments?.length
+        ? {
+            attachment: msg.attachments.map((a) => ({
+              name: a.name,
+              content: a.content,
+            })),
+          }
+        : {}),
     }),
   });
   if (!res.ok) {

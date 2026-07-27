@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
 import { api, type User } from './api.js';
 import { AccountPage } from './pages/AccountPage.js';
 import { AuthPage } from './pages/AuthPage.js';
+import { BugReportPage } from './pages/BugReportPage.js';
 import { GroupPage } from './pages/GroupPage.js';
 import { GroupsPage } from './pages/GroupsPage.js';
 
@@ -36,6 +37,9 @@ export function App() {
           <img src="/logo.png" alt="Split" className="brand-logo" />
         </Link>
         <span className="user">
+          <Link to="/bug-report" className="muted">
+            Report a bug
+          </Link>
           <Link to="/account" className="muted">
             {me.name}
           </Link>
@@ -51,6 +55,7 @@ export function App() {
           path="/account"
           element={<AccountPage me={me} onDeleted={() => setMe(null)} />}
         />
+        <Route path="/bug-report" element={<BugReportPage />} />
       </Routes>
     </BrowserRouter>
   );

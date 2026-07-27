@@ -5,11 +5,17 @@ import { Worker } from 'bullmq';
 import { pino } from 'pino';
 import { db } from './db.js';
 import { sendEmail } from './email.js';
-import { enqueueDebtReminders, purgeBinnedGroups } from './jobs.js';
+import {
+  enqueueDebtReminders,
+  purgeBinnedGroups,
+  purgeOldBugReports,
+  sendBugReportEmail,
+} from './jobs.js';
 import {
   closeQueues,
   createQueueConnection,
   housekeepingQueue,
+  type BugReportJob,
   type EmailJob,
 } from './queue.js';
 
@@ -27,11 +33,20 @@ await housekeepingQueue.upsertJobScheduler(
   { pattern: '0 9 * * 1', tz: 'Asia/Kolkata' }, // Mondays 9:00 IST
   { name: 'debt-reminders' },
 );
+await housekeepingQueue.upsertJobScheduler(
+  'purge-bug-reports',
+  { every: 24 * 60 * 60 * 1000 },
+  { name: 'purge-bug-reports' },
+);
 
-const emailWorker = new Worker<EmailJob>(
+const emailWorker = new Worker<EmailJob | BugReportJob>(
   'emails',
   async (job) => {
-    await sendEmail(job.data);
+    if (job.name === 'bug-report') {
+      await sendBugReportEmail((job.data as BugReportJob).reportId);
+    } else {
+      await sendEmail(job.data as EmailJob);
+    }
   },
   { connection: createQueueConnection() },
 );
@@ -48,6 +63,11 @@ const housekeepingWorker = new Worker(
       case 'debt-reminders': {
         const queued = await enqueueDebtReminders();
         log.info({ queued }, 'queued debt reminder emails');
+        break;
+      }
+      case 'purge-bug-reports': {
+        const purged = await purgeOldBugReports();
+        if (purged > 0) log.info({ purged }, 'purged old bug reports');
         break;
       }
       default:

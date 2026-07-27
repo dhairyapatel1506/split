@@ -1,9 +1,11 @@
 // Job implementations executed by the worker process.
 import { config } from './config.js';
 import { db } from './db.js';
+import { sendEmail } from './email.js';
 import { emailsQueue } from './queue.js';
 
 export const BIN_RETENTION_DAYS = 30;
+export const BUG_REPORT_RETENTION_DAYS = 90;
 
 const inr = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -16,6 +18,54 @@ export async function purgeBinnedGroups(): Promise<number> {
     [BIN_RETENTION_DAYS],
   );
   return res.rowCount ?? 0;
+}
+
+// Screenshots are the bulk of a report's footprint; 90 days is plenty of
+// time to have acted on one. Images cascade with the report row.
+export async function purgeOldBugReports(): Promise<number> {
+  const res = await db.query(
+    'DELETE FROM bug_reports WHERE created_at < now() - make_interval(days => $1)',
+    [BUG_REPORT_RETENTION_DAYS],
+  );
+  return res.rowCount ?? 0;
+}
+
+// Runs in the worker: pulls the report + screenshots out of Postgres and
+// mails them to the admin address. The queue job carries only the id, so
+// megabytes of image data never pass through Redis.
+export async function sendBugReportEmail(reportId: string): Promise<void> {
+  const { rows } = await db.query(
+    `SELECT r.description, r.user_agent, r.created_at, u.email, u.name
+       FROM bug_reports r
+       JOIN users u ON u.id = r.user_id
+      WHERE r.id = $1`,
+    [reportId],
+  );
+  const report = rows[0];
+  if (!report) return; // report purged or reporter hard-deleted — nothing to send
+  const { rows: images } = await db.query(
+    `SELECT content_type, bytes FROM bug_report_images
+      WHERE report_id = $1 ORDER BY id`,
+    [reportId],
+  );
+  const ext: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/webp': 'webp',
+  };
+  await sendEmail({
+    to: config.bugReportEmail,
+    subject: `Split bug report from ${report.name}`,
+    text:
+      `From: ${report.name} <${report.email}>\n` +
+      `Browser: ${report.user_agent ?? 'unknown'}\n` +
+      `When: ${report.created_at.toISOString()}\n\n` +
+      report.description,
+    attachments: images.map((img, i) => ({
+      name: `screenshot-${i + 1}.${ext[img.content_type] ?? 'bin'}`,
+      content: img.bytes.toString('base64'),
+    })),
+  });
 }
 
 // Weekly sweep: compute every member's net position per live group and

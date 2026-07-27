@@ -172,13 +172,24 @@ job retries with exponential backoff (3 attempts). If the worker is down,
 jobs wait in Redis until it's back. The API never blocks on email — an
 invite whose notification fails still added the member.
 
-Two scheduled jobs live in the worker (`upsertJobScheduler` keeps them
+Three scheduled jobs live in the worker (`upsertJobScheduler` keeps them
 registered without duplicating on restarts):
 
 - **Bin purge** — every 6 hours, permanently delete groups binned more than
   30 days ago.
 - **Debt reminders** — Mondays 9am IST, compute per-group debts and email
   each debtor a summary.
+- **Bug-report purge** — daily, drop reports (and their screenshots) older
+  than 90 days.
+
+Bug reports ride the same queue with a twist: the job carries only a report
+id, and the worker loads the description and screenshots from Postgres at
+send time — megabytes of image data never sit in Redis. The submission
+endpoint is deliberately hard to abuse: sign-in required, five reports per
+user per day (a Redis counter), at most three images of ≤2MB each (cut off
+mid-stream, not buffered), and each file's leading bytes must actually be a
+PNG/JPEG/WebP signature — the filename is never trusted. The recipient
+address is server config, so the form can't be pointed at anyone else.
 
 Email itself goes through **Brevo** (transactional email service, free
 tier) — because email from a fresh VM's IP goes straight to spam. The

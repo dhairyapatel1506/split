@@ -12,10 +12,14 @@ async function request<T>(
   path: string,
   body?: unknown,
 ): Promise<T> {
+  // FormData goes through untouched — the browser sets the multipart
+  // content-type (with its boundary) itself.
+  const isForm = body instanceof FormData;
   const res = await fetch(path, {
     method,
-    headers: body ? { 'content-type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
+    headers:
+      body && !isForm ? { 'content-type': 'application/json' } : undefined,
+    body: isForm ? body : body ? JSON.stringify(body) : undefined,
     credentials: 'same-origin',
   });
   const data = await res.json().catch(() => null);

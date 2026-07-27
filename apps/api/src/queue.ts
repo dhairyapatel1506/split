@@ -10,9 +10,19 @@ export function createQueueConnection(): Redis {
 
 const connection = createQueueConnection();
 
-export type EmailJob = { to: string; subject: string; text: string };
+export type EmailJob = {
+  to: string;
+  subject: string;
+  text: string;
+  // base64 file contents; only ever set worker-side (bug reports), so big
+  // payloads never sit in Redis.
+  attachments?: { name: string; content: string }[];
+};
+// Bug-report notifications carry just the id ('bug-report' jobs); the
+// worker loads the report and its screenshots from Postgres at send time.
+export type BugReportJob = { reportId: string };
 
-export const emailsQueue = new Queue<EmailJob>('emails', {
+export const emailsQueue = new Queue<EmailJob | BugReportJob>('emails', {
   connection,
   defaultJobOptions: {
     // Transient failures (mail provider down) retry with exponential

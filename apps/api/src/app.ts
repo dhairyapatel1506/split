@@ -10,6 +10,7 @@ import { closeQueues, emailsQueue, housekeepingQueue } from './queue.js';
 import { redis } from './redis.js';
 import { authRoutes } from './routes/auth.js';
 import { expenseRoutes } from './routes/expenses.js';
+import { googleAuthRoutes } from './routes/google.js';
 import { groupRoutes } from './routes/groups.js';
 
 export function buildApp() {
@@ -51,6 +52,7 @@ export function buildApp() {
   });
 
   app.register(authRoutes);
+  app.register(googleAuthRoutes);
   app.register(groupRoutes);
   app.register(expenseRoutes);
 

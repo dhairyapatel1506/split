@@ -225,6 +225,39 @@ button.danger:hover {
   gap: 0.6rem;
 }
 
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.85rem 0;
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid #262b36;
+}
+
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #333a47;
+  border-radius: 8px;
+  background: #10131a;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.google-btn:hover {
+  background: #1d222d;
+}
+
 .checks {
   display: flex;
   flex-wrap: wrap;

@@ -13,6 +13,9 @@ export function AccountPage({
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Google-only accounts have no password to confirm with; the explicit
+  // confirm dialog is the safety step for them instead.
+  const usesGoogle = me.hasPassword === false;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -27,7 +30,10 @@ export function AccountPage({
     setError(null);
     setBusy(true);
     try {
-      await api.post('/api/auth/delete-account', { password });
+      await api.post(
+        '/api/auth/delete-account',
+        usesGoogle ? {} : { password },
+      );
       onDeleted();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong');
@@ -55,6 +61,10 @@ export function AccountPage({
             <span className="muted">Email</span>
             <span>{me.email}</span>
           </li>
+          <li>
+            <span className="muted">Sign-in</span>
+            <span>{usesGoogle ? 'Google' : 'Email & password'}</span>
+          </li>
         </ul>
       </div>
 
@@ -71,14 +81,16 @@ export function AccountPage({
           </button>
         ) : (
           <form className="stack" onSubmit={submit}>
-            <input
-              type="password"
-              placeholder="Confirm your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoFocus
-            />
+            {!usesGoogle && (
+              <input
+                type="password"
+                placeholder="Confirm your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoFocus
+              />
+            )}
             {error && <div className="error">{error}</div>}
             <div className="row">
               <button className="danger" disabled={busy}>

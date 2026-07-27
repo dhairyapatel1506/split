@@ -18,6 +18,8 @@ edges — see [HOW-IT-WORKS.md](HOW-IT-WORKS.md).
   whole group
 - Recorded settlements ("paid back via GPay") — reviewable and removable, so
   a mis-click never locks in a payment that did not happen
+- Sign in with Google or email + password — a Google sign-in links to an
+  existing account with the same email automatically
 - Cookie-session auth (scrypt password hashing, sessions in Redis)
 - Email notifications: group invites, weekly "you owe" reminders (Brevo;
   logged to console when no `BREVO_API_KEY` is set)

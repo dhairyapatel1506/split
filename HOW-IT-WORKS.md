@@ -120,6 +120,28 @@ Standard cookie sessions, done carefully:
 - Why Redis and not a JWT? Revocability. A JWT is valid until it expires no
   matter what; a Redis session dies the moment we delete the key.
 
+**"Continue with Google"** is the classic server-side OAuth dance, written
+out by hand in `routes/google.ts` (about 100 lines — no library needed):
+
+1. The button is a plain link to `/api/auth/google`. The API stamps a
+   random `state` value into a short-lived signed cookie and redirects the
+   browser to Google's consent screen.
+2. Google sends the user back to `/api/auth/google/callback` with a
+   one-time `code` — and echoes `state`, which must match the cookie
+   (otherwise someone could trick a victim's browser into completing a
+   login the attacker started).
+3. The server trades the code plus the **client secret** (which never
+   touches the browser) for Google's signed statement of who the user is:
+   a stable id (`sub`), a verified email, and a name.
+4. From there it's our normal machinery: match on `sub` (returning user),
+   else link by email (Google verified it, so this is safe), else create
+   an account — password-less, with pending group invites redeemed exactly
+   like a password signup — and mint the same Redis session cookie.
+
+The redirect URL is environment config, not code: Google will only send
+users back to URLs pre-registered in its console, which is why the same
+OAuth client lists both `localhost` (dev) and the production domain.
+
 ## 5. Groups and their life cycle
 
 The features are ordinary; the invariants are the interesting part.

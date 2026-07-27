@@ -32,7 +32,14 @@ export const api = {
   del: <T>(path: string) => request<T>('DELETE', path),
 };
 
-export type User = { id: string; email: string; name: string };
+// hasPassword is only populated by /api/auth/me (false = Google-only
+// account); login/signup responses omit it.
+export type User = {
+  id: string;
+  email: string;
+  name: string;
+  hasPassword?: boolean;
+};
 export type Group = {
   id: string;
   name: string;

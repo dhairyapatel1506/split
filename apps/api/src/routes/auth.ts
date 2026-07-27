@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import type pg from 'pg';
 import { z } from 'zod';
 import {
   createSession,
@@ -18,6 +19,27 @@ const signupBody = credentials.extend({
   name: z.string().trim().min(1).max(100),
 });
 
+// Adds the new user to every live group they were invited to, then clears
+// the invites (single-use by design). Runs inside the caller's transaction
+// so account + memberships land together — shared by password signup and
+// Google sign-in.
+export async function redeemInvites(
+  client: pg.PoolClient,
+  email: string,
+  userId: string,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO group_members (group_id, user_id)
+     SELECT i.group_id, $2
+       FROM group_invites i
+       JOIN groups g ON g.id = i.group_id AND g.deleted_at IS NULL
+      WHERE i.email = $1
+     ON CONFLICT DO NOTHING`,
+    [email, userId],
+  );
+  await client.query('DELETE FROM group_invites WHERE email = $1', [email]);
+}
+
 export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/api/auth/signup', async (req, reply) => {
     const body = signupBody.parse(req.body);
@@ -35,20 +57,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
         [email, body.name, passwordHash],
       );
       user = rows[0];
-      // Redeem pending group invites for this email (live groups only),
-      // then clear them — they are single-use by design.
-      await client.query(
-        `INSERT INTO group_members (group_id, user_id)
-         SELECT i.group_id, $2
-           FROM group_invites i
-           JOIN groups g ON g.id = i.group_id AND g.deleted_at IS NULL
-          WHERE i.email = $1
-         ON CONFLICT DO NOTHING`,
-        [email, user.id],
-      );
-      await client.query('DELETE FROM group_invites WHERE email = $1', [
-        email,
-      ]);
+      await redeemInvites(client, email, user.id);
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
@@ -73,6 +82,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       [body.email.toLowerCase()],
     );
     const user = rows[0];
+    // Google-only accounts have no password_hash at all.
+    if (user && user.password_hash === null) {
+      return reply.code(401).send({
+        error: 'This account uses Google sign-in — use “Continue with Google”',
+      });
+    }
     if (!user || !(await verifyPassword(body.password, user.password_hash))) {
       return reply.code(401).send({ error: 'Invalid email or password' });
     }
@@ -87,10 +102,13 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/api/auth/me', { preHandler: requireAuth }, async (req) => {
     const { rows } = await db.query(
-      'SELECT id, email, name FROM users WHERE id = $1',
+      `SELECT id, email, name,
+              password_hash IS NOT NULL AS has_password
+         FROM users WHERE id = $1`,
       [req.userId],
     );
-    return rows[0];
+    const u = rows[0];
+    return { id: u.id, email: u.email, name: u.name, hasPassword: u.has_password };
   });
 
   app.post(
@@ -98,15 +116,21 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     { preHandler: requireAuth },
     async (req, reply) => {
       const { password } = z
-        .object({ password: z.string() })
+        .object({ password: z.string().optional() })
         .parse(req.body);
       const { rows: urows } = await db.query(
         'SELECT password_hash FROM users WHERE id = $1',
         [req.userId],
       );
+      if (!urows[0]) {
+        return reply.code(401).send({ error: 'Not signed in' });
+      }
+      // Password accounts must re-prove the password. Google-only accounts
+      // have none to prove — the live session plus the explicit confirm
+      // step in the UI is the barrier there.
       if (
-        !urows[0] ||
-        !(await verifyPassword(password, urows[0].password_hash))
+        urows[0].password_hash !== null &&
+        !(await verifyPassword(password ?? '', urows[0].password_hash))
       ) {
         return reply.code(401).send({ error: 'Incorrect password' });
       }
@@ -175,7 +199,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
             `UPDATE users
                 SET email = 'deleted-' || id || '@users.split.invalid',
                     name = 'Deleted user',
-                    password_hash = 'deleted'
+                    password_hash = 'deleted',
+                    google_id = NULL
               WHERE id = $1`,
             [req.userId],
           );

@@ -15,4 +15,7 @@ export const config = {
   brevoApiKey: process.env.BREVO_API_KEY ?? '',
   emailFrom: process.env.EMAIL_FROM ?? 'split@dhairya.cloud',
   appBaseUrl: process.env.APP_BASE_URL ?? 'http://localhost:5173',
+  // Google OAuth credentials; when unset, Google sign-in returns 503.
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? '',
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
 };

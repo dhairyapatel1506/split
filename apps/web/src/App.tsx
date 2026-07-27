@@ -1,5 +1,11 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Link,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
 import { api, type User } from './api.js';
 import { AccountPage } from './pages/AccountPage.js';
 import { AuthPage } from './pages/AuthPage.js';
@@ -55,8 +61,16 @@ export function App() {
           path="/account"
           element={<AccountPage me={me} onDeleted={() => setMe(null)} />}
         />
-        <Route path="/bug-report" element={<BugReportPage />} />
+        <Route path="/bug-report" element={<FreshBugReportPage />} />
       </Routes>
     </BrowserRouter>
   );
+}
+
+// Every navigation gets a fresh location.key — even a Link to the page
+// you're already on. Keying on it remounts the form blank, so clicking
+// "Report a bug" right after sending one starts a new report.
+function FreshBugReportPage() {
+  const { key } = useLocation();
+  return <BugReportPage key={key} />;
 }

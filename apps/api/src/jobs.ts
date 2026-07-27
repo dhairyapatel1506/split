@@ -48,10 +48,10 @@ export async function sendBugReportEmail(reportId: string): Promise<void> {
       WHERE report_id = $1 ORDER BY id`,
     [reportId],
   );
+  // Only formats Brevo accepts as attachments (it rejects e.g. .webp).
   const ext: Record<string, string> = {
     'image/png': 'png',
     'image/jpeg': 'jpg',
-    'image/webp': 'webp',
   };
   await sendEmail({
     to: config.bugReportEmail,

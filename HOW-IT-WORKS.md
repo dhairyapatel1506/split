@@ -188,8 +188,11 @@ send time — megabytes of image data never sit in Redis. The submission
 endpoint is deliberately hard to abuse: sign-in required, five reports per
 user per day (a Redis counter), at most three images of ≤2MB each (cut off
 mid-stream, not buffered), and each file's leading bytes must actually be a
-PNG/JPEG/WebP signature — the filename is never trusted. The recipient
-address is server config, so the form can't be pointed at anyone else.
+PNG or JPEG signature — the filename is never trusted, and formats the
+email provider can't deliver as attachments (e.g. WebP) are rejected up
+front rather than failing silently after the reporter has moved on. The
+recipient address is server config, so the form can't be pointed at
+anyone else.
 
 Email itself goes through **Brevo** (transactional email service, free
 tier) — because email from a fresh VM's IP goes straight to spam. The

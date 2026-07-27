@@ -11,7 +11,9 @@ const DAILY_LIMIT = 5;
 const RATE_WINDOW_S = 24 * 60 * 60;
 
 // Every image format opens with a fixed signature ("magic bytes"). This is
-// what the file is, regardless of what it is called.
+// what the file is, regardless of what it is called. PNG and JPEG only:
+// Brevo rejects .webp attachments outright, and a format we accept here
+// but can't deliver would fail silently after the reporter has moved on.
 function sniffImageType(buf: Buffer): string | null {
   if (
     buf.length > 8 &&
@@ -23,13 +25,6 @@ function sniffImageType(buf: Buffer): string | null {
   }
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
     return 'image/jpeg';
-  }
-  if (
-    buf.length > 12 &&
-    buf.subarray(0, 4).toString('latin1') === 'RIFF' &&
-    buf.subarray(8, 12).toString('latin1') === 'WEBP'
-  ) {
-    return 'image/webp';
   }
   return null;
 }
@@ -61,7 +56,7 @@ export const bugReportRoutes: FastifyPluginAsync = async (app) => {
             const contentType = sniffImageType(bytes);
             if (!contentType) {
               return reply.code(400).send({
-                error: 'Screenshots must be PNG, JPEG, or WebP images',
+                error: 'Screenshots must be PNG or JPEG images',
               });
             }
             images.push({ contentType, bytes });

@@ -26,6 +26,16 @@ export function BugReportPage() {
       e.target.value = '';
       return;
     }
+    // PNG/JPEG only — our email provider can't deliver other formats as
+    // attachments, and the server rejects them too.
+    const wrongType = chosen.find(
+      (f) => !['image/png', 'image/jpeg'].includes(f.type),
+    );
+    if (wrongType) {
+      setError(`“${wrongType.name}” isn’t a PNG or JPEG — please convert it`);
+      e.target.value = '';
+      return;
+    }
     setFiles(chosen);
   };
 
@@ -57,8 +67,15 @@ export function BugReportPage() {
 
       <div className="card">
         {sent ? (
-          <div className="notice">
-            Thanks — your report is on its way. We read every one.
+          <div className="stack">
+            <div className="notice">
+              Thanks — your report is on its way. We read every one.
+            </div>
+            <span>
+              <Link to="/bug-report" className="muted">
+                Report another bug
+              </Link>
+            </span>
           </div>
         ) : (
           <form className="stack" onSubmit={submit}>
@@ -77,7 +94,7 @@ export function BugReportPage() {
             />
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp"
+              accept="image/png,image/jpeg"
               multiple
               onChange={pick}
             />
@@ -93,7 +110,9 @@ export function BugReportPage() {
             {error && <div className="error">{error}</div>}
             <div className="row">
               <button disabled={busy}>Send report</button>
-              <span className="muted">Up to 3 screenshots, 2 MB each</span>
+              <span className="muted">
+                Up to 3 screenshots (PNG/JPEG), 2 MB each
+              </span>
             </div>
           </form>
         )}

@@ -279,7 +279,7 @@ button.danger:hover {
   font-size: 0.9rem;
 }
 
-form.stack {
+.stack {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
